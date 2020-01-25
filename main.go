@@ -74,7 +74,9 @@ func merger(done chan jobDone) {
 		for {
 			time.Sleep(1 * time.Second)
 			elapsedSeconds++
-			secondsLeft = total * elapsedSeconds / processed
+			worksLeft := float64(total - processed)
+			worksPerSecond := float64(elapsedSeconds) / float64(processed)
+			secondsLeft = int(worksPerSecond * worksLeft)
 		}
 	}
 	go ticker()
