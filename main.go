@@ -46,8 +46,12 @@ func worker(jobs chan job, done chan jobDone) {
 						resize.Lanczos3,
 					)
 					done <- jobDone{
-						file:  work.output + work.file,
-						image: img,
+						file: work.output + work.file,
+					}
+					out, err := os.Create(work.output + work.file)
+					if err == nil {
+						jpeg.Encode(out, img, &jpeg.Options{Quality: 100})
+						out.Close()
 					}
 				}
 				file.Close()
@@ -63,21 +67,31 @@ func worker(jobs chan job, done chan jobDone) {
 func merger(done chan jobDone) {
 	mergers.Add(1)
 	defer mergers.Done()
-	i := 1
+	processed := 1
+	secondsLeft := 0
+	elapsedSeconds := 1
+	ticker := func() {
+		for {
+			time.Sleep(1 * time.Second)
+			elapsedSeconds++
+			secondsLeft = total * elapsedSeconds / processed
+		}
+	}
+	go ticker()
 	for job := range done {
+		timeLeft, err := time.ParseDuration(fmt.Sprintf("%ds", secondsLeft))
+		if err != nil {
+			log.Printf("err: '%+v'", err)
+		}
 		log.Printf(
-			"(%.2f %%) [%d/%d] processing %s",
-			float64(i*100)/float64(total),
-			i,
+			"[%d/%d] (%.2f %%) (%s left) processing %s",
+			processed,
 			total,
+			float64(processed*100)/float64(total),
+			timeLeft,
 			job.file,
 		)
-		i++
-		out, err := os.Create(job.file)
-		if err == nil {
-			jpeg.Encode(out, job.image, &jpeg.Options{Quality: 100})
-			out.Close()
-		}
+		processed++
 
 	}
 }
@@ -91,8 +105,7 @@ type job struct {
 }
 
 type jobDone struct {
-	file  string
-	image image.Image
+	file string
 }
 
 var mergers sync.WaitGroup
@@ -100,6 +113,7 @@ var workers sync.WaitGroup
 var generators sync.WaitGroup
 var images = map[string]map[string]string{}
 var total = 0
+var processed = 0
 
 func main() {
 	flag.Usage = func() {
@@ -117,7 +131,7 @@ func main() {
 		flag.Usage()
 		return
 	}
-	nWorker := 6
+	nWorker := 10
 	jobs := make(chan job, nWorker*2)
 	done := make(chan jobDone, nWorker*2)
 
