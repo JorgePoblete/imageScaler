@@ -70,12 +70,14 @@ func merger(done chan jobDone) {
 	processed := 1
 	secondsLeft := 0
 	elapsedSeconds := 1
+	worksLeft := 0.0
+	worksPerSecond := 0.0
 	ticker := func() {
 		for {
 			time.Sleep(1 * time.Second)
 			elapsedSeconds++
-			worksLeft := float64(total - processed)
-			worksPerSecond := float64(elapsedSeconds) / float64(processed)
+			worksLeft = float64(total - processed)
+			worksPerSecond = float64(elapsedSeconds) / float64(processed)
 			secondsLeft = int(worksPerSecond * worksLeft)
 		}
 	}
@@ -86,10 +88,12 @@ func merger(done chan jobDone) {
 			log.Printf("err: '%+v'", err)
 		}
 		log.Printf(
-			"[%d/%d] (%.2f %%) (%s left) processing %s",
+			"[%d/%d] (%.0f jobs left) (%.2f %%) (%.2f jobs/seg) (%s left) processing %s",
 			processed,
 			total,
+			worksLeft,
 			float64(processed*100)/float64(total),
+			1.0/worksPerSecond,
 			timeLeft,
 			job.file,
 		)
